@@ -235,6 +235,72 @@ hasItemConformingToTypeIdentifier: | 用于判断是否有typeIdentifier(UTI)所
 loadItemForTypeIdentifier:options:completionHandler: | 加载typeIdentifier指定的资源。加载是一个异步过程，加载完成后会触发completionHandler。
 loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 
+由此可见，其结构如下图所示：
+![image](http://github.com/wang22290/share-Extension/raw/master/1804600.png)
+
+为了要取到宿主程序提供的数组，那么只要关注loadItemTypeIdentifier:options:completionHandler方法的使用即可。有了上面的了解，那么接下来就是对inputItems进行数据分析并提取了，这里以一个链接的分享为例，改写视图控制器中的didSelectPost方法。看下面的代码：
+
+	- (void)didSelectPost
+	{
+	    __block BOOL hasExistsUrl = NO;
+	    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem * _Nonnull extItem, NSUInteger idx, BOOL * _Nonnull stop) {
+	        [item.attachments enumerateObjectsUsingBlock:^(NSItemProvider * _Nonnull itemProvider, NSUInteger idx, BOOL * _Nonnull stop) {
+	         //获取图片
+				if ([itemProvider hasItemConformingToTypeIdentifier:@"public.url"])
+				            {
+				                [itemProvider loadItemForTypeIdentifier:@"public.url"
+				                                                options:nil
+				                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+				
+				                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+				                                          {
+				                                              NSLog(@"分享的URL = %@", item);
+				                                          }
+				
+				                                      }];
+				
+				                hasExistsUrl = YES;
+				                *stop = YES;
+				            }
+				
+				        }];
+              //获取链接
+	            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.url"])
+	            {
+	                [itemProvider loadItemForTypeIdentifier:@"public.url"
+	                                                options:nil
+	                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+	
+	                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+	                                          {
+	                                              NSLog(@"分享的URL = %@", item);
+	                                          }
+	
+	                                      }];
+	
+	                hasExistsUrl = YES;
+	                *stop = YES;
+	            }
+	
+	        }];
+	
+	        if (hasExistsUrl)
+	        {
+	            *stop = YES;
+	        }
+	
+	    }];
+	
+	    // This is called after the user selects Post. Do the upload of contentText and/or NSExtensionContext attachments.
+	    // Inform the host that we're done, so it un-blocks its UI. Note: Alternatively you could call super's -didSelectPost, which will similarly complete the extension context.
+	//    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+	}
+
+上面的例子中遍历了extensionContext的inputItems数组中所有NSExtensionItem对象，然后从这些对象中遍历attachments数组中的所有NSItemProvider对象。匹配第一个包含public.url标识的附件（具体要匹配什么资源，数量是多少皆有自己的业务所决定）。** 注意：在上面代码中注释了[self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];这行代码，主要是使到视图控制器不被关闭，等到实现相应的处理后再进行调用该方法，对分享视图进行关闭。** 在下面的章节会说明这一点。
+####2.5 将分享数据传递给容器程序
+上面章节已经讲述了如何取得宿主应用所分享的内容。那么，接下来就是将这些内容传递给容器程序进行相应的操作（如：在一款社交应用中，可能会为取得的分享内容发布一条用户动态）。在默认情况下，iOS的应用是存在一个沙盒里面的，不允许应用与应用直接进行数据的交互。为此，苹果提供了一项叫App Groups的服务，该服务允许开发者可以在自己的应用之间通过NSUserDefaults、NSFileManager或者CoreData来进行相互的数据传输。下面介绍如何激活App Groups服务：
+
+首先要有一个独立的AppID（带通配符＊号的AppID是不允许激活App Groups的）
 
 
 
