@@ -35,7 +35,14 @@
 <img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png" border="0" width="300" height="370" alt="" align="center">
 ####2、接下来我们准备处理分享数据
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_22.png)
-图片为苹果原生为我们提供的分享页面，
+图片为苹果原生为我们提供的分享页面，进入程序shareViewController页面
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_23.png)
+依次来解析一下这三个方法
+`- (BOOL)isContentValid {
+    // Do validation of contentText and/or NSExtensionContext attachments here
+    return YES;
+}` 
+
   
 
 
