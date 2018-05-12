@@ -37,11 +37,214 @@
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_22.png)
 图片为苹果原生为我们提供的分享页面，进入程序shareViewController页面
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_23.png)
-依次来解析一下这三个方法
-`- (BOOL)isContentValid {
-    // Do validation of contentText and/or NSExtensionContext attachments here
-    return YES;
-}` 
+#####2.1依次来解析一下这三个方法
+
+	/*
+	isContentValid来判断我们获取到得数据是否是我们想要的。
+	*/
+	- (BOOL)isContentValid {
+	// Do validation of contentText and/or NSExtensionContext attachments here
+	return YES;
+	} 
+	/**
+	*  点击取消按钮
+	*/
+	- (void)didSelectCancel
+	{
+	[super didSelectCancel];
+	}
+	
+	/**
+	 *  点击提交按钮
+	 */
+	- (void)didSelectPost
+	{
+	    // This is called after the user selects Post. Do the upload of contentText and/or NSExtensionContext attachments.
+	
+	    // Inform the host that we're done, so it un-blocks its UI. Note: Alternatively you could call super's -didSelectPost, which will similarly complete the extension context.
+	    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+	    }
+
+在这两个方法里面可以进行一些自定义的操作。一般情况下，当用户点击提交按钮的时候，扩展要做的事情就是要把数据取出来，并且放入一个与Containing App（** 容器程序，尽管苹果开放了Extension，但是在iOS中extension并不能单独存在，要想提交到AppStore，必须将Extension包含在一个App中提交，并且App的实现部分不能为空,这个包含Extension的App就叫Containing app。Extension会随着Containing App的安装而安装，同时随着ContainingApp的卸载而卸载。**）共享的数据介质中（包括NSUserDefault、Sqlite、CoreData），要跟容器程序进行数据交互需要借助AppGroups服务，下面的章节会对这块进行详细说明。下面先来看看怎么获取扩展中的数据。
+
+#####2.2在ShareExtension中，UIViewController包含一个extensionContext这样的上下文对象：
+
+	@interface UIViewController(NSExtensionAdditions) <NSExtensionRequestHandling>
+	
+	// Returns the extension context. Also acts as a convenience method for a view controller to check if it participating in an extension request.
+	@property (nullable, nonatomic,readonly,strong) NSExtensionContext *extensionContext NS_AVAILABLE_IOS(8_0);
+	@end
+
+通过操作它就可以获取到分享的数据，返回宿主应用的界面等操作。我们可以先看一下extensionContext的定义。
+
+	NS_CLASS_AVAILABLE(10_10, 8_0)
+	@interface NSExtensionContext : NSObject
+	
+	// The list of input NSExtensionItems associated with the context. If the context has no input items, this array will be empty.
+	@property(readonly, copy, NS_NONATOMIC_IOSONLY) NSArray *inputItems;
+	
+	// Signals the host to complete the app extension request with the supplied result items. The completion handler optionally contains any work which the extension may need to perform after the request has been completed, as a background-priority task. The `expired` parameter will be YES if the system decides to prematurely terminate a previous non-expiration invocation of the completionHandler. Note: calling this method will eventually dismiss the associated view controller.
+	- (void)completeRequestReturningItems:(nullable NSArray *)items completionHandler:(void(^ __nullable)(BOOL expired))completionHandler;
+	
+	// Signals the host to cancel the app extension request, with the supplied error, which should be non-nil. The userInfo of the NSError will contain a key NSExtensionItemsAndErrorsKey which will have as its value a dictionary of NSExtensionItems and associated NSError instances.
+	- (void)cancelRequestWithError:(NSError *)error;
+	
+	// Asks the host to open an URL on the extension's behalf
+	- (void)openURL:(NSURL *)URL completionHandler:(void (^ __nullable)(BOOL success))completionHandler;
+	
+	@end
+	
+	// Key in userInfo. Value is a dictionary of NSExtensionItems and associated NSError instances.
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionItemsAndErrorsKey NS_AVAILABLE(10_10, 8_0);
+	
+	// The host process will enter the foreground
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionHostWillEnterForegroundNotification NS_AVAILABLE_IOS(8_2);
+	
+	// The host process did enter the background
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionHostDidEnterBackgroundNotification NS_AVAILABLE_IOS(8_2);
+	
+#####2.3NSExtensionContext的结构比较简单，包含一个属性和三个方法。其说明如下：
+
+方法 | 说明
+--------- | -------------
+inputItems | 该数组存储着容器应用传入给NSExtensionContext的NSExtensionItem数组。其中每个NSExtensionItem标识了一种类型的数据。要获取数据就要从这个属性入手。
+completeRequestReturningItems:<br />completionHandler: | 通知宿主程序的扩展已完成请求。调用此方法后，扩展UI会关闭并返回容器程序中。其中的items就是返回宿主程序的数据项。
+cancelRequestWithError: | 通知宿主程序的扩展已取消请求。调用此方法后，扩展UI会关闭并返回容器程序中。其中error为错误的描述信息。
+NSExtensionItemsAndErrorsKey | NSExtensionItem的userInfo属性中对应的错误信息键名。
+
+#####2.4类的下面还定义了一些通知，这些通知都是跟宿主程序的行为相关，在设计扩展的时候可以根据这些通知来进行对应的操作。其说明如下：
+
+
+通知名称 | 说明
+--------- | -------------
+NSExtensionHostWillEnterForegroundNotification |宿主程序将要返回前台通知NSExtensionHostDidEnterBackgroundNotification |宿主程序进入后台通知
+NSExtensionHostWillResignActiveNotification |宿主程序将要被挂起通知
+NSExtensionHostDidBecomeActiveNotification |宿主程序被激活通知
+#####2.5从inputItems中获取数据
+inputItems是包含NSExtensionItem类型对象的数组。那么，要处理里面的数据还得先来了解一下NSExtensionItem的结构：
+	
+	@interface NSExtensionItem : NSObject<NSCopying, NSSecureCoding>
+	
+	// (optional) title for the item
+	@property(nullable, copy, NS_NONATOMIC_IOSONLY) NSAttributedString *attributedTitle;
+	
+	// (optional) content text
+	@property(nullable, copy, NS_NONATOMIC_IOSONLY) NSAttributedString *attributedContentText;
+	
+	// (optional) Contains images, videos, URLs, etc. This is not meant to be an array of alternate data formats/types, but instead a collection to include in a social media post for example. These items are always typed NSItemProvider.
+	@property(nullable, copy, NS_NONATOMIC_IOSONLY) NSArray *attachments;
+	
+	// (optional) dictionary of key-value data. The key/value pairs accepted by the service are expected to be specified in the extension's Info.plist. The values of NSExtensionItem's properties will be reflected into the dictionary.
+	@property(nullable, copy, NS_NONATOMIC_IOSONLY) NSDictionary *userInfo;
+	
+	@end
+	
+	// Keys corresponding to properties exposed on the NSExtensionItem interface
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionItemAttributedTitleKey NS_AVAILABLE(10_10, 8_0);
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionItemAttributedContentTextKey NS_AVAILABLE(10_10, 8_0);
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionItemAttachmentsKey NS_AVAILABLE(10_10, 8_0);
+
+NSExtensionItem包含四个属性
+
+属性 | 说明
+--------- | -------------
+attributedTitle |	标题
+attributedContentText |	内容。
+attachments |	附件数组，包含图片、视频、链接等资源，封装在NSItemProvider类型中。
+userInfo |	一个key－value结构的数据。NSExtensionItem中的属性都会在这个属性中一一映射。
+
+对应userInfo结构中的NSExtensionItem属性的键名如下：
+
+名称 | 说明
+--------- | -------------
+NSExtensionItemAttributedTitleKey |	标题的键名
+NSExtensionItemAttributedContentTextKey |	内容的键名。
+NSExtensionItemAttachmentsKey |	附件的键名
+
+从上面的定义可以看出除了文本内容，其他类型的内容都是作为附件存储的，而附件又是封装在一个叫NSItemProvider的类型中，其定义如下：
+
+	typedef void (^NSItemProviderCompletionHandler)(__nullable id <NSSecureCoding> item, NSError * __null_unspecified error);
+	typedef void (^NSItemProviderLoadHandler)(__null_unspecified NSItemProviderCompletionHandler completionHandler, __null_unspecified Class expectedValueClass, NSDictionary * __null_unspecified options);
+	
+	// An NSItemProvider is a high level abstraction for file-like data objects supporting multiple representations and preview images.
+	NS_CLASS_AVAILABLE(10_10, 8_0)
+	@interface NSItemProvider : NSObject <NSCopying>
+	
+	// Initialize an NSItemProvider with a single handler for the given item.
+	- (instancetype)initWithItem:(nullable id <NSSecureCoding>)item typeIdentifier:(nullable NSString *)typeIdentifier NS_DESIGNATED_INITIALIZER;
+	
+	// Initialize an NSItemProvider with load handlers for the given file URL, and the file content.
+	- (nullable instancetype)initWithContentsOfURL:(null_unspecified NSURL *)fileURL;
+	
+	// Sets a load handler block for a specific type identifier. Handlers are invoked on demand through loadItemForTypeIdentifier:options:completionHandler:. To complete loading, the implementation has to call the given completionHandler. Both expectedValueClass and options parameters are derived from the completionHandler block.
+	- (void)registerItemForTypeIdentifier:(NSString *)typeIdentifier loadHandler:(NSItemProviderLoadHandler)loadHandler;
+	
+	// Returns the list of registered type identifiers
+	@property(copy, readonly, NS_NONATOMIC_IOSONLY) NSArray *registeredTypeIdentifiers;
+	
+	// Returns YES if the item provider has at least one item that conforms to the supplied type identifier.
+	- (BOOL)hasItemConformingToTypeIdentifier:(NSString *)typeIdentifier;
+	
+	// Loads the best matching item for a type identifier. The client's expected value class is automatically derived from the blocks item parameter. Returns an error if the returned item class does not match the expected value class. Item providers will perform simple type coercions (eg. NSURL to NSData, NSURL to NSFileWrapper, NSData to UIImage).
+	- (void)loadItemForTypeIdentifier:(NSString *)typeIdentifier options:(nullable NSDictionary *)options completionHandler:(nullable NSItemProviderCompletionHandler)completionHandler;
+	
+	@end
+	
+	// Common keys for the item provider options dictionary.
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSItemProviderPreferredImageSizeKey NS_AVAILABLE(10_10, 8_0); // NSValue of CGSize or NSSize, specifies image size in pixels.
+	
+	@interface NSItemProvider(NSPreviewSupport)
+	
+	// Sets a custom preview image handler block for this item provider. The returned item should preferably be NSData or a file NSURL.
+	@property(nullable, copy, NS_NONATOMIC_IOSONLY) NSItemProviderLoadHandler previewImageHandler NS_AVAILABLE(10_10, 8_0);
+	
+	// Loads the preview image for this item by either calling the supplied preview block or falling back to a QuickLook-based handler. This method, like loadItemForTypeIdentifier:options:completionHandler:, supports implicit type coercion for the item parameter of the completion block. Allowed value classes are: NSData, NSURL, UIImage/NSImage.
+	- (void)loadPreviewImageWithOptions:(null_unspecified NSDictionary *)options completionHandler:(null_unspecified NSItemProviderCompletionHandler)completionHandler NS_AVAILABLE(10_10, 8_0);
+	
+	@end
+	
+	// Keys used in property list items received from or sent to JavaScript code
+	
+	// If JavaScript code passes an object to its completionFunction, it will be placed into an item of type kUTTypePropertyList, containing an NSDictionary, under this key.
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionJavaScriptPreprocessingResultsKey NS_AVAILABLE(10_10, 8_0);
+	
+	// Arguments to be passed to a JavaScript finalize method should be placed in an item of type kUTTypePropertyList, containing an NSDictionary, under this key.
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSExtensionJavaScriptFinalizeArgumentKey NS_AVAILABLE_IOS(8_0);
+	
+	// Errors
+	
+	// Constant used by NSError to distinguish errors belonging to the NSItemProvider domain
+	FOUNDATION_EXTERN NSString * __null_unspecified const NSItemProviderErrorDomain NS_AVAILABLE(10_10, 8_0);
+	
+	// NSItemProvider-related error codes
+	typedef NS_ENUM(NSInteger, NSItemProviderErrorCode) {
+	    NSItemProviderUnknownError                                      = -1,
+	    NSItemProviderItemUnavailableError                              = -1000,
+	    NSItemProviderUnexpectedValueClassError                         = -1100,
+	    NSItemProviderUnavailableCoercionError NS_AVAILABLE(10_11, 9_0) = -1200
+	} NS_ENUM_AVAILABLE(10_10, 8_0);
+
+NSItemProvider结构说明
+
+名称 | 说明
+--------- | -------------
+initWithItem:typeIdentifier: | 初始化方法，item为附件的数据，typeIdentifier是附件对应的类型标识,对应UTI的描述。
+initWithContentsOfURL | 根据制定的文件路径来初始化。
+registerItemForTypeIdentifier:loadHandler:|为一种资源类型自定义加载过程。这个方法主要针对自定义资源使用，例如自己定义的类或者文件格式等。当调用loadItemForTypeIdentifier:options:completionHandler:方法时就会触发定义的加载过程。
+hasItemConformingToTypeIdentifier: | 用于判断是否有typeIdentifier(UTI)所指定的资源存在。存在则返回YES，否则返回NO。<br />该方法结合loadItemForTypeIdentifier:options:completionHandler:使用。
+loadItemForTypeIdentifier:options:completionHandler: | 加载typeIdentifier指定的资源。加载是一个异步过程，加载完成后会触发completionHandler。
+loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
+
+
+
+
+
+
+
+
+
+
+
 
   
 
