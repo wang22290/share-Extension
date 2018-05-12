@@ -1,6 +1,6 @@
 # 有关Share Extension 【iOS扩展开发攻略】
 ###最近接到的分享需求，要求做原生的分享，就去百度很多资料，坑坑洼洼的完成了任务上线，现在回过来总结一下踩过的坑.
-----------------------
+------------------------------------------------------------------------------------
 
 * 1、首先给大家介绍一下iOS扩展.
 
@@ -10,9 +10,10 @@
    接下来我们主要讲一下share Extension具体实现。
 * 2、代码实现
 
-  share Extension实现是需要依赖一个工程，如果你没有工程需要重新创建一个(如果你不会创建工程，你可以关闭浏览器了)；创建完工程后我们需要创建一个share Extension的工程，创建方法如图：
-
-![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_9.png)
+   ####1、 share Extension实现是需要依赖一个工程，如果你没有工程需要重新创建一个(如果你不会创建工程，你可以关闭浏览器了)；创建完工程后我们需要创建一个share Extension的工程，创建方法如图：
+ 
+<!--<img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_9.png" border="1" width="300" height="100" alt="d">-->
+![image scr](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_9.png)
   接着继续点击
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_10.png)
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_12.png)
@@ -24,9 +25,20 @@
   share Extension项目运行必须有一个容器，我们先用默认的浏览器尝试一下，
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_16.png)
   进入手机页面你会发现分享按钮是灰色状态不能点击，我先需要打开一个网页，例如：（www.baidu.com），现在我们点击方向按钮，会在分享栏找到我们的APP
-  ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png)
-   如果没有发现APP，点击旁边更多按钮，进入下级页面，把APP权限按钮打开
-  ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png)
+  
+<!--  <img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png" border="0" width="100" height="200" alt="">
+-->  
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png)
+  
+ 如果没有发现APP，点击旁边更多按钮，进入下级页面，把APP权限按钮打开
+ 
+<img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png" border="0" width="300" height="370" alt="" align="center">
+####2、接下来我们准备处理分享数据
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_22.png)
+图片为苹果原生为我们提供的分享页面，
+  
+
+
     
 
     
