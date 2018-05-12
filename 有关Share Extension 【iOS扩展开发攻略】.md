@@ -301,11 +301,14 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 上面章节已经讲述了如何取得宿主应用所分享的内容。那么，接下来就是将这些内容传递给容器程序进行相应的操作（如：在一款社交应用中，可能会为取得的分享内容发布一条用户动态）。在默认情况下，iOS的应用是存在一个沙盒里面的，不允许应用与应用直接进行数据的交互。为此，苹果提供了一项叫App Groups的服务，该服务允许开发者可以在自己的应用之间通过NSUserDefaults、NSFileManager或者CoreData来进行相互的数据传输。下面介绍如何激活App Groups服务：
 
 首先要有一个独立的AppID（带通配符＊号的AppID是不允许激活App Groups的）
+==*Xcode中直接打开group，设置group后，开发者网站会同步*==
 
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_24.png)
 点击添加按钮，会出现添加框
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_25.png)
 gronp.后面填写你项目的bundle identifer 即可；同样在share 项目中添加group信息，（系统应该已经默认为你添加上，默认选择就好）
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_26.png)
+group设置完成后，我们需要配置修改info文件中的NSExtensionActivationRule字段
 
 
 
