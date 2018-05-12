@@ -1,5 +1,5 @@
 # 有关Share Extension 【iOS扩展开发攻略】
-###最近接到的分享需求，要求做原生的分享，就去百度很多资料，坑坑洼洼的完成了任务上线，现在回过来总结一下踩过的坑.
+###最近接到的share Extension需求，要求做原生的share Extension，就去百度很多资料，坑坑洼洼的完成了任务上线，现在回过来总结一下踩过的坑.
 ------------------------------------------------------------------------------------
 
 * 1、首先给大家介绍一下iOS扩展.
@@ -24,7 +24,7 @@
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_15.png)
   share Extension项目运行必须有一个容器，我们先用默认的浏览器尝试一下，
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_16.png)
-  进入手机页面你会发现分享按钮是灰色状态不能点击，我先需要打开一个网页，例如：（www.baidu.com），现在我们点击方向按钮，会在分享栏找到我们的APP
+  进入手机页面你会发现share Extension按钮是灰色状态不能点击，我先需要打开一个网页，例如：（www.baidu.com），现在我们点击方向按钮，会在share Extension栏找到我们的APP
   
 <!--  <img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png" border="0" width="100" height="200" alt="">
 -->  
@@ -33,9 +33,9 @@
  如果没有发现APP，点击旁边更多按钮，进入下级页面，把APP权限按钮打开
  
 <img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png" border="0" width="300" height="370" alt="" align="center">
-####2、接下来我们准备处理分享数据
+####2、接下来我们准备处理share Extension数据
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_22.png)
-图片为苹果原生为我们提供的分享页面，进入程序shareViewController页面
+图片为苹果原生为我们提供的share Extension页面，进入程序shareViewController页面
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_23.png)
 #####2.1依次来解析一下这三个方法
 
@@ -75,7 +75,7 @@
 	@property (nullable, nonatomic,readonly,strong) NSExtensionContext *extensionContext NS_AVAILABLE_IOS(8_0);
 	@end
 
-通过操作它就可以获取到分享的数据，返回宿主应用的界面等操作。我们可以先看一下extensionContext的定义。
+通过操作它就可以获取到share Extension的数据，返回宿主应用的界面等操作。我们可以先看一下extensionContext的定义。
 
 	NS_CLASS_AVAILABLE(10_10, 8_0)
 	@interface NSExtensionContext : NSObject
@@ -238,7 +238,7 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 由此可见，其结构如下图所示：
 ![image](http://github.com/wang22290/share-Extension/raw/master/1804600.png)
 
-为了要取到宿主程序提供的数组，那么只要关注loadItemTypeIdentifier:options:completionHandler方法的使用即可。有了上面的了解，那么接下来就是对inputItems进行数据分析并提取了，这里以一个链接的分享为例，改写视图控制器中的didSelectPost方法。看下面的代码：
+为了要取到宿主程序提供的数组，那么只要关注loadItemTypeIdentifier:options:completionHandler方法的使用即可。有了上面的了解，那么接下来就是对inputItems进行数据分析并提取了，这里以一个链接的share Extension为例，改写视图控制器中的didSelectPost方法。看下面的代码：
 
 	- (void)didSelectPost
 	{
@@ -254,7 +254,7 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 				
 				                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
 				                                          {
-				                                              NSLog(@"分享的URL = %@", item);
+				                                              NSLog(@"share Extension的URL = %@", item);
 				                                          }
 				
 				                                      }];
@@ -273,7 +273,7 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 	
 	                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
 	                                          {
-	                                              NSLog(@"分享的URL = %@", item);
+	                                              NSLog(@"share Extension的URL = %@", item);
 	                                          }
 	
 	                                      }];
@@ -296,9 +296,9 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 	//    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
 	}
 
-上面的例子中遍历了extensionContext的inputItems数组中所有NSExtensionItem对象，然后从这些对象中遍历attachments数组中的所有NSItemProvider对象。匹配第一个包含public.url标识的附件（具体要匹配什么资源，数量是多少皆有自己的业务所决定）。** 注意：在上面代码中注释了[self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];这行代码，主要是使到视图控制器不被关闭，等到实现相应的处理后再进行调用该方法，对分享视图进行关闭。** 在下面的章节会说明这一点。
-####2.5 将分享数据传递给容器程序
-上面章节已经讲述了如何取得宿主应用所分享的内容。那么，接下来就是将这些内容传递给容器程序进行相应的操作（如：在一款社交应用中，可能会为取得的分享内容发布一条用户动态）。在默认情况下，iOS的应用是存在一个沙盒里面的，不允许应用与应用直接进行数据的交互。为此，苹果提供了一项叫App Groups的服务，该服务允许开发者可以在自己的应用之间通过NSUserDefaults、NSFileManager或者CoreData来进行相互的数据传输。下面介绍如何激活App Groups服务：
+上面的例子中遍历了extensionContext的inputItems数组中所有NSExtensionItem对象，然后从这些对象中遍历attachments数组中的所有NSItemProvider对象。匹配第一个包含public.url标识的附件（具体要匹配什么资源，数量是多少皆有自己的业务所决定）。** 注意：在上面代码中注释了[self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];这行代码，主要是使到视图控制器不被关闭，等到实现相应的处理后再进行调用该方法，对share Extension视图进行关闭。** 在下面的章节会说明这一点。
+####2.5 将share Extension数据传递给容器程序
+上面章节已经讲述了如何取得宿主应用所share Extension的内容。那么，接下来就是将这些内容传递给容器程序进行相应的操作（如：在一款社交应用中，可能会为取得的share Extension内容发布一条用户动态）。在默认情况下，iOS的应用是存在一个沙盒里面的，不允许应用与应用直接进行数据的交互。为此，苹果提供了一项叫App Groups的服务，该服务允许开发者可以在自己的应用之间通过NSUserDefaults、NSFileManager或者CoreData来进行相互的数据传输。下面介绍如何激活App Groups服务：
 
 首先要有一个独立的AppID（带通配符＊号的AppID是不允许激活App Groups的）
 ==*Xcode中直接打开group，设置group后，开发者网站会同步*==
@@ -309,7 +309,7 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 gronp.后面填写你项目的bundle identifer 即可；同样在share 项目中添加group信息，（系统应该已经默认为你添加上，默认选择就好）
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_26.png)
 
-至此，应用和扩展的App Groups服务都已经启动，现在就要进行分享内容的传输操作。下面分别介绍一下NSUserDefaults、NSFileManager以及CoreData三种方式是如何实现App Groups下的数据操作：
+至此，应用和扩展的App Groups服务都已经启动，现在就要进行share Extension内容的传输操作。下面分别介绍一下NSUserDefaults、NSFileManager以及CoreData三种方式是如何实现App Groups下的数据操作：
 
 * NSUserDefaults：要想设置或访问Group的数据，不能在使用standardUserDefaults方法来获取一个NSUserDefaults对象了。应该使用initWithSuiteName:方法来初始化一个NSUserDefaults对象，其中的SuiteName就是创建的Group的名字，然后利用这个对象来实现，跨应用的数据读写，代码如下：
 	
@@ -362,7 +362,7 @@ gronp.后面填写你项目的bundle identifer 即可；同样在share 项目中
 	}];
 
 为了方便演示，这里会使用NSUserDefault来直接把取到的url地址保存起来。代码如下所示：
-_(默认情况下，如果用户点击Post按钮后，分享界面就会消失，用户可以继续对宿主程序进行操作。这些都要靠NSExtensionContextd的completeRequestReturningItems:completionHandler:方法来实现。现在，由于在didSelectPost方法中加入了分享内容的处理，由于获取附件是一个异步过程，那么，就需要做好界面上的提示。否则，分享界面消失后由于没有操作提示，会使用户误以为界面进行卡死的状态，其实是分享内容还没有处理完成。接下来就是优化UI上的提示操作，
+_(默认情况下，如果用户点击Post按钮后，share Extension界面就会消失，用户可以继续对宿主程序进行操作。这些都要靠NSExtensionContextd的completeRequestReturningItems:completionHandler:方法来实现。现在，由于在didSelectPost方法中加入了share Extension内容的处理，由于获取附件是一个异步过程，那么，就需要做好界面上的提示。否则，share Extension界面消失后由于没有操作提示，会使用户误以为界面进行卡死的状态，其实是share Extension内容还没有处理完成。接下来就是优化UI上的提示操作，
 )_
 
 	
@@ -411,11 +411,11 @@ _(默认情况下，如果用户点击Post按钮后，分享界面就会消失�
                                           if ([(NSObject *)item isKindOfClass:[NSURL class]])
                                               
                                           {
-                                              NSLog(@"分享的URL = %@", item);
+                                              NSLog(@"share Extension的URL = %@", item);
                                               
                                               [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-text-url"];
                                               
-                                              //用于标记是新的分享
+                                              //用于标记是新的share Extension
                                               [userDefaults setBool:YES forKey:@"has-new-share"];
                                               
                                               [activityIndicatorView stopAnimating];
@@ -439,11 +439,11 @@ _(默认情况下，如果用户点击Post按钮后，分享界面就会消失�
                                           if ([(NSObject *)item isKindOfClass:[NSURL class]])
                                               
                                           {
-                                              NSLog(@"分享的URL = %@", item);
+                                              NSLog(@"share Extension的URL = %@", item);
                                               
                                               [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-image-url"];
                                               
-                                              //用于标记是新的分享
+                                              //用于标记是新的share Extension
                                               [userDefaults setBool:YES forKey:@"has-new-share"];
                                               
                                               [activityIndicatorView stopAnimating];
@@ -469,11 +469,11 @@ _(默认情况下，如果用户点击Post按钮后，分享界面就会消失�
                                           if ([(NSObject *)item isKindOfClass:[NSURL class]])
 
                                           {
-                                              NSLog(@"分享的URL = %@", item);
+                                              NSLog(@"share Extension的URL = %@", item);
                                               
                                               [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-url"];
                                              
-                                              //用于标记是新的分享
+                                              //用于标记是新的share Extension
                                               [userDefaults setBool:YES forKey:@"has-new-share"];
                                               
                                               [activityIndicatorView stopAnimating];
@@ -503,7 +503,7 @@ _(默认情况下，如果用户点击Post按钮后，分享界面就会消失�
     }
     }
 
-####2.6 容器程序获取分享数据
+####2.6 容器程序获取share Extension数据
 插件的工作基本上已经全部开发完成了，接下来就是容器程序获取数据并进行操作。下面是容器程序的处理代码：
 
 	- (void)applicationDidBecomeActive:(UIApplication *)application
@@ -512,18 +512,19 @@ _(默认情况下，如果用户点击Post按钮后，分享界面就会消失�
 	    NSUserDefaults *userDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"group.cn.vimfung.ShareExtensionDemo"];
 	    if ([userDefaults boolForKey:@"has-new-share"])
 	    {
-	        NSLog(@"新的分享 : %@", [userDefaults valueForKey:@"share-url"]);
+	        NSLog(@"新的share Extension : %@", [userDefaults valueForKey:@"share-url"]);
 	
-	        //重置分享标识
+	        //重置share Extension标识
 	        [userDefaults setBool:NO forKey:@"has-new-share"];
 	    }
 	}
 	
-为了方便演示，这里直接在AppDelegate中的applicationDidBecomeActive:方法中检测是否有新的分享，如果有则通过Log打印链接出来。
+为了方便演示，这里直接在AppDelegate中的applicationDidBecomeActive:方法中检测是否有新的share Extension，如果有则通过Log打印链接出来。
 
-####2.7 在share 分享中，应该会有很多同学因为数据传输，页面调用问题发愁，接下来重点介绍一下我使用的方法==直接唤起APP，完成分享==
+####2.7 在share share Extension中，应该会有很多同学因为数据传输，页面调用问题发愁，接下来重点介绍一下我使用的方法==直接唤起APP，完成 share Extension==
  * 我们需要给APP配置一个url Schemes；
- 
+ ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_28.png)
+
   
 
 ####2.7配置info文件
@@ -536,25 +537,25 @@ group设置完成后，我们需要配置修改info文件中的NSExtensionActiva
 Bundle display name |	扩展的显示名称，默认跟你的项目名称相同，可以通过修改此字段来控制扩展的显示名称。
 NSExtension |	扩展描述字段，用于描述扩展的属性、设置等。作为一个扩展项目必须要包含此字段。
 NSExtensionAttributes |	扩展属性集合字段。用于描述扩展的属性。
-NSExtensionActivationRule |		激活扩展的规则。默认为字符串“TRUEPREDICATE”，表示在分享菜单中一直显示该扩展。可以将类型改为Dictionary类型，然后添加以下字段：<br />NSExtensionActivationSupportsAttachmentsWithMaxCount<br />NSExtensionActivationSupportsAttachmentsWithMinCount<br />NSExtensionActivationSupportsImageWithMaxCount<br />NSExtensionActivationSupportsMovieWithMaxCount<br />NSExtensionActivationSupportsWebPageWithMaxCount<br />NSExtensionActivationSupportsWebURLWithMaxCount
+NSExtensionActivationRule |		激活扩展的规则。默认为字符串“TRUEPREDICATE”，表示在share Extension菜单中一直显示该扩展。可以将类型改为Dictionary类型，然后添加以下字段：<br />NSExtensionActivationSupportsAttachmentsWithMaxCount<br />NSExtensionActivationSupportsAttachmentsWithMinCount<br />NSExtensionActivationSupportsImageWithMaxCount<br />NSExtensionActivationSupportsMovieWithMaxCount<br />NSExtensionActivationSupportsWebPageWithMaxCount<br />NSExtensionActivationSupportsWebURLWithMaxCount
 NSExtensionMainStoryboard |	设置主界面的Storyboard，如果不想使用storyboard，也可以使用NSExtensionPrincipalClass指定自定义UIViewController子类名
-NSExtensionPointIdentifier |	扩展标识，在分享扩展中为：com.apple.share-services
+NSExtensionPointIdentifier |	扩展标识，在share Extension扩展中为：com.apple.share-services
 NSExtensionPrincipalClass |	自定义UI的类名
 NSExtensionActivationSupportsAttachmentsWithMaxCount |	附件最多限制，为数值类型。附件包括File、Image和Movie三大类，单一、混选总量不超过指定数量
-NSExtensionActivationSupportsAttachmentsWithMinCount |	附件最少限制，为数值类型。当设置NSExtensionActivationSupportsAttachmentsWithMaxCount时生效，默认至少选择1个附件，分享菜单中才显示扩展插件图标。
+NSExtensionActivationSupportsAttachmentsWithMinCount |	附件最少限制，为数值类型。当设置NSExtensionActivationSupportsAttachmentsWithMaxCount时生效，默认至少选择1个附件，share Extension菜单中才显示扩展插件图标。
 NSExtensionActivationSupportsFileWithMaxCount|	文件最多限制，为数值类型。文件泛指除Image/Movie之外的附件，例如【邮件】附件、【语音备忘录】等。<br /><br />单一、混选均不超过指定数量。
 NSExtensionActivationSupportsImageWithMaxCount | 图片最多限制，为数值类型。单一、混选均不超过指定数量
 NSExtensionActivationSupportsMovieWithMaxCount | 视频最多限制，为数值类型。单一、混选均不超过指定数量。
-NSExtensionActivationSupportsText | 是否支持文本类型，布尔类型，默认不支持。如【备忘录】的分享
-NSExtensionActivationSupportsWebURLWithMaxCount| Web链接最多限制，为数值类型。默认不支持分享超链接，需要自己设置一个数值。
-NSExtensionActivationSupportsWebPageWithMaxCount | 	Web页面最多限制，为数值类型。默认不支持Web页面分享，需要自己设置一个数值。
+NSExtensionActivationSupportsText | 是否支持文本类型，布尔类型，默认不支持。如【备忘录】的share Extension
+NSExtensionActivationSupportsWebURLWithMaxCount| Web链接最多限制，为数值类型。默认不支持share Extension超链接，需要自己设置一个数值。
+NSExtensionActivationSupportsWebPageWithMaxCount | 	Web页面最多限制，为数值类型。默认不支持Web页面share Extension，需要自己设置一个数值。
 
-对于不同的应用里面有可能出现只允许接受某种类型的内容，那么Share Extension就不能一直出现在分享菜单中，因为不同的应用提供的分享内容不一样，这就需要通过设置NSExtensionActivationRule字段来决定Share Extension是否显示。例如，只想接受其他应用分享链接到自己的应用，那么可以通过下面的步骤来设置：
+对于不同的应用里面有可能出现只允许接受某种类型的内容，那么Share Extension就不能一直出现在share Extension菜单中，因为不同的应用提供的share Extension内容不一样，这就需要通过设置NSExtensionActivationRule字段来决定Share Extension是否显示。例如，只想接受其他应用share Extension链接到自己的应用，那么可以通过下面的步骤来设置：
 
 将NSExtensionActivationRule字段类型由String改为Dictionary。
 展开NSExtensionActivationRule字段，创建其子项NSExtensionActivationSupportsWebURLWithMaxCount，并设置一个限制数量。
 
-==一定要把全部的规则配置，否则对应的分享中不会显示APP==
+==一定要把全部的规则配置，否则对应的share Extension中不会显示APP==
 
 
 
