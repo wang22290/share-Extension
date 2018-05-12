@@ -308,9 +308,260 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_25.png)
 gronp.后面填写你项目的bundle identifer 即可；同样在share 项目中添加group信息，（系统应该已经默认为你添加上，默认选择就好）
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_26.png)
+
+至此，应用和扩展的App Groups服务都已经启动，现在就要进行分享内容的传输操作。下面分别介绍一下NSUserDefaults、NSFileManager以及CoreData三种方式是如何实现App Groups下的数据操作：
+
+* NSUserDefaults：要想设置或访问Group的数据，不能在使用standardUserDefaults方法来获取一个NSUserDefaults对象了。应该使用initWithSuiteName:方法来初始化一个NSUserDefaults对象，其中的SuiteName就是创建的Group的名字，然后利用这个对象来实现，跨应用的数据读写，代码如下：
+	
+		
+		//初始化一个供App Groups使用的NSUserDefaults对象
+		NSUserDefaults *userDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"group.Taiyi.shareP"];
+		
+		//写入数据
+		[userDefaults setValue:@"value" forKey:@"key"];
+		
+		//读取数据
+		NSLog(@"%@", [userDefaults valueForKey:@"key"]);
+	
+* NSFileManager：通过调用 containerURLForSecurityApplicationGroupIdentifier:方法可以获得AppGroup的共享目录，然后在此目录的基础上实现任意的文件操作。代码如下：
+   //获取分组的共享目录
+   
+		NSURL *groupURL = [[NSFileManager defaultManager] containerURLForSecurityApplicationGroupIdentifier:@"group.cn.vimfung.ShareExtensionDemo"];
+		NSURL *fileURL = [groupURL URLByAppendingPathComponent:@"demo.txt"];
+		
+		//写入文件
+		[@"abc" writeToURL:fileURL atomically:YES encoding:NSUTF8StringEncoding error:nil];
+		
+		//读取文件
+		NSString *str = [NSString stringWithContentsOfURL:fileURL encoding:NSUTF8StringEncoding error:nil];
+		NSLog(@"str = %@", str);
+	
+* CoreData：其实CoreData是基于NSFileManager取得共享目录后来实现数据共享的。即在初始化CoreData时，先使用NSFileManager取得共享目录，然后再指定共享目录为存储数据文件的目录（如存储的sqlite文件）。代码如下：
+		 
+		   //获取分组的共享项目
+		NSURL *containerURL = [[NSFileManager defaultManager] containerURLForSecurityApplicationGroupIdentifier:@"group.cn.vimfung.ShareExtensionDemo"];
+		NSURL *storeURL = [containerURL URLByAppendingPathComponent:@"DataModel.sqlite"];
+		
+		//初始化持久化存储调度器
+		NSURL *modelURL = [[NSBundle mainBundle] URLForResource:@"DataModel" withExtension:@"momd"];
+		
+		NSManagedObjectModel *model = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+		NSPersistentStoreCoordinator *coordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:model];
+		
+		[coordinator addPersistentStoreWithType:NSSQLiteStoreType
+		                          configuration:nil
+		                                    URL:storeURL
+		                                options:nil
+		                                  error:nil];
+		
+		//创建受控对象上下文
+		NSManagedObjectContext *context = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSMainQueueConcurrencyType];
+		
+		[context performBlockAndWait:^{
+		    [context setPersistentStoreCoordinator:coordinator];
+	}];
+
+为了方便演示，这里会使用NSUserDefault来直接把取到的url地址保存起来。代码如下所示：
+_(默认情况下，如果用户点击Post按钮后，分享界面就会消失，用户可以继续对宿主程序进行操作。这些都要靠NSExtensionContextd的completeRequestReturningItems:completionHandler:方法来实现。现在，由于在didSelectPost方法中加入了分享内容的处理，由于获取附件是一个异步过程，那么，就需要做好界面上的提示。否则，分享界面消失后由于没有操作提示，会使用户误以为界面进行卡死的状态，其实是分享内容还没有处理完成。接下来就是优化UI上的提示操作，
+)_
+
+	
+	- (void)didSelectPost {
+	    
+	    _viewCon = [ViewController new];
+	    NSString *aa = [_viewCon setNumber];
+	    NSLog(@"%@",aa);
+	    //加载动画初始化
+	    UIActivityIndicatorView *activityIndicatorView = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+	    activityIndicatorView.frame = CGRectMake((self.view.frame.size.width - activityIndicatorView.frame.size.width) / 2,
+	                                             (self.view.frame.size.height - activityIndicatorView.frame.size.height) / 2,
+	                                             activityIndicatorView.frame.size.width,
+	                                             activityIndicatorView.frame.size.height);
+	    activityIndicatorView.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+	    [self.view addSubview:activityIndicatorView];
+	    
+	    //激活加载动画
+	    [activityIndicatorView startAnimating];
+	
+	    // Inform the host that we're done, so it un-blocks its UI. Note: Alternatively you could call super's -didSelectPost, which will similarly complete the extension context.
+	    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+	    
+	    __block BOOL hasExistsUrl = NO;
+	    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem * _Nonnull extItem, NSUInteger idx, BOOL * _Nonnull stop) {
+        NSLog(@"%@-----------%@",extItem.attributedTitle,extItem.attributedContentText);
+        
+        NSUserDefaults *userDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"group.taiyi.shareP"];
+        NSAttributedString *strings = [extItem.attributedContentText attributedSubstringFromRange:NSMakeRange(0, extItem.attributedContentText.length)];
+        NSArray *array = [strings.string componentsSeparatedByString:@"\n"];
+        NSString *firstString = array[0];
+        NSLog(@"%@",firstString);
+        [userDefaults setValue:firstString forKey:@"share-content"];
+       
+        [extItem.attachments enumerateObjectsUsingBlock:^(NSItemProvider * _Nonnull itemProvider, NSUInteger idx, BOOL * _Nonnull stop) {
+
+            NSLog(@"%d",[itemProvider hasItemConformingToTypeIdentifier:@"public.url"]);
+            
+            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.text"])
+            {
+                //加载typeIdentifier指定的资源
+                [itemProvider loadItemForTypeIdentifier:@"public.text"
+                                                options:nil
+                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+                                          
+                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+                                              
+                                          {
+                                              NSLog(@"分享的URL = %@", item);
+                                              
+                                              [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-text-url"];
+                                              
+                                              //用于标记是新的分享
+                                              [userDefaults setBool:YES forKey:@"has-new-share"];
+                                              
+                                              [activityIndicatorView stopAnimating];
+                                              [self.extensionContext completeRequestReturningItems:@[extItem] completionHandler:nil];
+                                              
+                                          }
+                                          
+                                      }];
+                
+                hasExistsUrl = YES;
+                *stop = YES;
+            }
+            
+            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.image"])
+            {
+                //加载typeIdentifier指定的资源
+                [itemProvider loadItemForTypeIdentifier:@"public.image"
+                                                options:nil
+                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+                                          
+                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+                                              
+                                          {
+                                              NSLog(@"分享的URL = %@", item);
+                                              
+                                              [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-image-url"];
+                                              
+                                              //用于标记是新的分享
+                                              [userDefaults setBool:YES forKey:@"has-new-share"];
+                                              
+                                              [activityIndicatorView stopAnimating];
+                                              [self.extensionContext completeRequestReturningItems:@[extItem] completionHandler:nil];
+                                              
+                                          }
+                                          
+                                      }];
+                
+                hasExistsUrl = YES;
+                *stop = YES;
+            }
+
+            
+            
+            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.url"])
+            {
+                //加载typeIdentifier指定的资源
+                [itemProvider loadItemForTypeIdentifier:@"public.url"
+                                                options:nil
+                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+                                          
+                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+
+                                          {
+                                              NSLog(@"分享的URL = %@", item);
+                                              
+                                              [userDefaults setValue:((NSURL *)item).absoluteString forKey:@"share-url"];
+                                             
+                                              //用于标记是新的分享
+                                              [userDefaults setBool:YES forKey:@"has-new-share"];
+                                              
+                                              [activityIndicatorView stopAnimating];
+                                              [self.extensionContext completeRequestReturningItems:@[extItem] completionHandler:nil];
+                                              
+                                          }
+                                          
+                                      }];
+                
+                hasExistsUrl = YES;
+                *stop = YES;
+            }
+            
+        }];
+        
+        if (hasExistsUrl)
+        {
+            *stop = YES;
+        }
+        
+    }];
+    
+    if (!hasExistsUrl)
+    {
+        //直接退出
+        [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+    }
+    }
+
+####2.6 容器程序获取分享数据
+插件的工作基本上已经全部开发完成了，接下来就是容器程序获取数据并进行操作。下面是容器程序的处理代码：
+
+	- (void)applicationDidBecomeActive:(UIApplication *)application
+	{
+	    //获取共享的UserDefaults
+	    NSUserDefaults *userDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"group.cn.vimfung.ShareExtensionDemo"];
+	    if ([userDefaults boolForKey:@"has-new-share"])
+	    {
+	        NSLog(@"新的分享 : %@", [userDefaults valueForKey:@"share-url"]);
+	
+	        //重置分享标识
+	        [userDefaults setBool:NO forKey:@"has-new-share"];
+	    }
+	}
+	
+为了方便演示，这里直接在AppDelegate中的applicationDidBecomeActive:方法中检测是否有新的分享，如果有则通过Log打印链接出来。
+
+####2.7 在share 分享中，应该会有很多同学因为数据传输，页面调用问题发愁，接下来重点介绍一下我使用的方法==直接唤起APP，完成分享==
+ * 我们需要给APP配置一个url Schemes；
+ 
+  
+
+####2.7配置info文件
 group设置完成后，我们需要配置修改info文件中的NSExtensionActivationRule字段
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_27.png)
+我们只需要关注以下几个字段的设置：
+
+名称 | 说明
+--------- | -------------
+Bundle display name |	扩展的显示名称，默认跟你的项目名称相同，可以通过修改此字段来控制扩展的显示名称。
+NSExtension |	扩展描述字段，用于描述扩展的属性、设置等。作为一个扩展项目必须要包含此字段。
+NSExtensionAttributes |	扩展属性集合字段。用于描述扩展的属性。
+NSExtensionActivationRule |		激活扩展的规则。默认为字符串“TRUEPREDICATE”，表示在分享菜单中一直显示该扩展。可以将类型改为Dictionary类型，然后添加以下字段：<br />NSExtensionActivationSupportsAttachmentsWithMaxCount<br />NSExtensionActivationSupportsAttachmentsWithMinCount<br />NSExtensionActivationSupportsImageWithMaxCount<br />NSExtensionActivationSupportsMovieWithMaxCount<br />NSExtensionActivationSupportsWebPageWithMaxCount<br />NSExtensionActivationSupportsWebURLWithMaxCount
+NSExtensionMainStoryboard |	设置主界面的Storyboard，如果不想使用storyboard，也可以使用NSExtensionPrincipalClass指定自定义UIViewController子类名
+NSExtensionPointIdentifier |	扩展标识，在分享扩展中为：com.apple.share-services
+NSExtensionPrincipalClass |	自定义UI的类名
+NSExtensionActivationSupportsAttachmentsWithMaxCount |	附件最多限制，为数值类型。附件包括File、Image和Movie三大类，单一、混选总量不超过指定数量
+NSExtensionActivationSupportsAttachmentsWithMinCount |	附件最少限制，为数值类型。当设置NSExtensionActivationSupportsAttachmentsWithMaxCount时生效，默认至少选择1个附件，分享菜单中才显示扩展插件图标。
+NSExtensionActivationSupportsFileWithMaxCount|	文件最多限制，为数值类型。文件泛指除Image/Movie之外的附件，例如【邮件】附件、【语音备忘录】等。<br /><br />单一、混选均不超过指定数量。
+NSExtensionActivationSupportsImageWithMaxCount | 图片最多限制，为数值类型。单一、混选均不超过指定数量
+NSExtensionActivationSupportsMovieWithMaxCount | 视频最多限制，为数值类型。单一、混选均不超过指定数量。
+NSExtensionActivationSupportsText | 是否支持文本类型，布尔类型，默认不支持。如【备忘录】的分享
+NSExtensionActivationSupportsWebURLWithMaxCount| Web链接最多限制，为数值类型。默认不支持分享超链接，需要自己设置一个数值。
+NSExtensionActivationSupportsWebPageWithMaxCount | 	Web页面最多限制，为数值类型。默认不支持Web页面分享，需要自己设置一个数值。
+
+对于不同的应用里面有可能出现只允许接受某种类型的内容，那么Share Extension就不能一直出现在分享菜单中，因为不同的应用提供的分享内容不一样，这就需要通过设置NSExtensionActivationRule字段来决定Share Extension是否显示。例如，只想接受其他应用分享链接到自己的应用，那么可以通过下面的步骤来设置：
+
+将NSExtensionActivationRule字段类型由String改为Dictionary。
+展开NSExtensionActivationRule字段，创建其子项NSExtensionActivationSupportsWebURLWithMaxCount，并设置一个限制数量。
+
+==一定要把全部的规则配置，否则对应的分享中不会显示APP==
 
 
+
+#####3 提审AppStore的注意事项
+扩展中的处理不能太长时间阻塞主线程（建议放入线程中处处理），否则可能导致苹果拒绝你的应用。
+扩展不能单独提审，必须要跟容器程序一起提交AppStore进行审核。
+提审的扩展和容器程序的Build Version要保持一致，否则在上传审核包的时候会提示警告，导致程序无法正常提审。
 
 
 
