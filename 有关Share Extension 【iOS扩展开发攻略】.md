@@ -302,10 +302,10 @@ loadPreviewImageWithOptions:completionHandler: | 加载资源的预览图片。
 
 首先要有一个独立的AppID（带通配符＊号的AppID是不允许激活App Groups的）
 
-
-
-
-
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_24.png)
+点击添加按钮，会出现添加框
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_25.png)
+gronp.后面填写你项目的bundle identifer 即可；同样在share 项目中添加group信息，（系统应该已经默认为你添加上，默认选择就好）
 
 
 
