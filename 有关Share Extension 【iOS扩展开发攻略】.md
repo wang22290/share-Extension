@@ -524,8 +524,94 @@ _(默认情况下，如果用户点击Post按钮后，share Extension界面就�
 ####2.7 在share share Extension中，应该会有很多同学因为数据传输，页面调用问题发愁，接下来重点介绍一下我使用的方法==直接唤起APP，完成 share Extension==
  * 我们需要给APP配置一个url Schemes；
  ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_28.png)
-
+ 
+* 然后在shareViewController里面调用
   
+    __block BOOL hasExistsUrl = NO;
+    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem * _Nonnull extItem, NSUInteger idx, BOOL * _Nonnull stop) {
+        NSLog(@"%@-----------%@",extItem.attributedTitle,extItem.attributedContentText);
+        NSAttributedString *strings = [extItem.attributedContentText attributedSubstringFromRange:NSMakeRange(0, extItem.attributedContentText.length)];
+        
+        NSArray *array = [strings.string componentsSeparatedByString:@"\n"];
+        self.titleString = [NSString stringWithFormat:@"%@",array[0]];
+        
+        [extItem.attachments enumerateObjectsUsingBlock:^(NSItemProvider * _Nonnull itemProvider, NSUInteger idx, BOOL * _Nonnull stop) {
+            //用于判断是否有typeIdentifier(UTI)所指定的资源存在。
+            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.url"])
+            {
+                //加载typeIdentifier指定的资源
+                [itemProvider loadItemForTypeIdentifier:@"public.url"
+                                                options:nil
+                                      completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+                                          
+                                          if ([(NSObject *)item isKindOfClass:[NSURL class]])
+                                          {
+                                              NSLog(@"分享的URL = %@", item);
+                                              self.urlString = [NSString stringWithFormat:@"%@",item];
+
+
+                                              NSString *urlStr = [NSString stringWithFormat:@"shareP://?articleTitle=%@&articleUrl=%@",[self encode:self.titleString], [self encode:self.urlString]];
+
+                                              if ([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:urlStr]]) {
+                                                  //可以调起APP
+                                                  [[UIApplication sharedApplication] openURL:[NSURL URLWithString:urlStr]];
+                                                  NSLog(@"调起成功");
+                                                  
+                                                  //直接退出
+                                                  [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+                                              }
+                                              
+                                          }
+                                          
+                                      }];
+                
+                hasExistsUrl = YES;
+                *stop = YES;
+            }
+            
+        }];
+        
+        if (hasExistsUrl)
+        {
+            *stop = YES;
+        }
+	         }];
+	    
+	    if (!hasExistsUrl)
+	    {
+	        //直接退出
+	        [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+	    }
+	    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(userHasebeenLocation) name:@"dismissController" object:nil];
+ 
+* 在项目appDelegate中接收信息
+				  
+		//授权登录操作
+		-(BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation {
+		    NSString *urlStr = url.absoluteString;
+		    NSString *sechemes = url.scheme;
+		    if([[self getAppSchemeString] isEqualToString:sechemes]){
+        
+        if ([urlStr containsString:@"articleTitle"] && [urlStr containsString:@"articleUrl"]) {
+            NSRange range1 = [urlStr rangeOfString:@"="];
+            NSRange range2 = [urlStr rangeOfString:@"&"];
+            NSString *articleTitle = [urlStr substringWithRange:NSMakeRange(range1.location + range1.length, range2.location - range1.location - range1.length)];
+            
+            NSString *stateStr = [urlStr substringFromIndex:range2.location+1];
+            NSRange range3 = [stateStr rangeOfString:@"="];
+            NSString *articleUrl = [stateStr substringFromIndex:range3.location+1];
+            NSLog(@"%@====%@",articleTitle,articleUrl);
+            
+            
+
+                //跳转代码就是跳转到你自己设计的控制器，我这里就不写了
+        }
+        
+        }
+	    return YES;
+		}
+到此，share Extension 调用APP完成，剩下的全部都可以在APP内部操作了，是不是很方便，
+
 
 ####2.7配置info文件
 group设置完成后，我们需要配置修改info文件中的NSExtensionActivationRule字段
@@ -560,14 +646,281 @@ NSExtensionActivationSupportsWebPageWithMaxCount | 	Web页面最多限制，为�
 
 
 #####3 提审AppStore的注意事项
-扩展中的处理不能太长时间阻塞主线程（建议放入线程中处处理），否则可能导致苹果拒绝你的应用。
-扩展不能单独提审，必须要跟容器程序一起提交AppStore进行审核。
-提审的扩展和容器程序的Build Version要保持一致，否则在上传审核包的时候会提示警告，导致程序无法正常提审。
+* 扩展中的处理不能太长时间阻塞主线程（建议放入线程中处处理），否则可能导致苹果拒绝你的应用。
+* 扩展不能单独提审，必须要跟容器程序一起提交AppStore进行审核。
+* 提审的扩展和容器程序的Build Version要保持一致，否则在上传审核包的时候会提示警告，导致程序无法正常提审。
+* 如果你的APP要送审APPStore必须全部配置NSExtensionActivationRule，字段类型必须对应，否则会提交失败，
+* 如果你的APP是用企业账号分发，==强烈建议不要使用group方式传递数据==，企业账号分发会关闭group，导致不能数据传输，
+
+####4. 进阶研究
+  * 4.1 对默认分享界面进行扩展
+  在某些情况下，在分享界面中会加入一下其它信息的显示，或者其它的选项供用户操作。如：内容要分享给什么好友、分享内容的可见权限等等。那么，默认的分享界面（ SLComposeServiceViewController）提供了相关的方法来对其进行扩展。这些方法定义如下
+			
+		  #if TARGET_OS_IPHONE
+		/*
+		 Configuration Item Support (account pickers, privacy selection, location, etc.)
+		 */
+			
+		// Subclasses should implement this, and return an array of SLComposeSheetConfigurationItem instances, if if needs to display configuration items in the sheet. Defaults to nil.
+		- (NSArray *)configurationItems;
+		
+		// Forces a reload of the configuration items table.
+		// This is typically only necessary for subclasses that determine their configuration items in a deferred manner (for example, in -presentationAnimationDidFinish).
+		// You do not need to call this after changing a configuration item property; the base class detects and reacts to that automatically.
+		- (void)reloadConfigurationItems;
+		
+		// Presents a configuration view controller. Typically called from a configuration item's tapHandler. Only one configuration view controller is allowed at a time.
+		// The pushed view controller should set preferredContentSize appropriately. SLComposeServiceViewController observes changes to that property and animates sheet size changes as necessary.
+		- (void)pushConfigurationViewController:(UIViewController *)viewController;
+		
+		// Dismisses the current configuration view controller.
+		- (void)popConfigurationViewController;
+		#endif
+其属性说明如下：	
+属性 | 说明
+--------- | -------------
+title | 配置项标题
+value | 当前的配置值
+valuePending | YES时，显示值位置显示加载动画，NO时，显示配置的值。
+tapHandler | 点击配置项的事件处理
+
+下面将通过使用这些方法来扩展UI，使插件增加两个配置项：一个是是否公开分享的配置项，该选项标识一个开关值。另外一个是公开权限设置项，在是否公开分享的开关为开时显示。可以选择分享给所有人还是好友。代码如下所示：
+	
+	- (NSArray *)configurationItems {
+	    // To add configuration options via table cells at the bottom of the sheet, return an array of SLComposeSheetConfigurationItem here.
+	
+	    //定义两个配置项，分别记录用户选择是否公开以及公开的权限，然后根据配置的值
+	    static BOOL isPublic = NO;
+	    static NSInteger act = 0;
+	
+	    NSMutableArray *items = [NSMutableArray array];
+	
+	    //创建是否公开配置项
+	    SLComposeSheetConfigurationItem *item = [[SLComposeSheetConfigurationItem alloc] init];
+	    item.title = @"是否公开";
+	    item.value = isPublic ? @"是" : @"否";
+	
+	    __weak ShareViewController *theController = self;
+	    __weak SLComposeSheetConfigurationItem *theItem = item;
+	    item.tapHandler = ^{
+	
+	        isPublic = !isPublic;
+	        theItem.value = isPublic ? @"是" : @"否";
+	
+	
+	        [theController reloadConfigurationItems];
+	    };
+	
+	    [items addObject:item];
+	
+	    if (isPublic)
+	    {
+	        //如果公开标识为YES，则创建公开权限配置项
+	        SLComposeSheetConfigurationItem *actItem = [[SLComposeSheetConfigurationItem alloc] init];
+	
+	        actItem.title = @"公开权限";
+	
+	        switch (act)
+	        {
+	            case 0:
+	                actItem.value = @"所有人";
+	                break;
+	            case 1:
+	                actItem.value = @"好友";
+	                break;
+	            default:
+	                break;
+	        }
+	
+	        actItem.tapHandler = ^{
+	
+	            //设置分享权限时弹出选择界面
+	            ShareActViewController *actVC = [[ShareActViewController alloc] init];
+	            [theController pushConfigurationViewController:actVC];
+	
+	            [actVC onSelected:^(NSIndexPath *indexPath) {
+	
+	                //当选择完成时退出选择界面并刷新配置项。
+	                act = indexPath.row;
+	                [theController popConfigurationViewController];
+	                [theController reloadConfigurationItems];
+	
+	            }];
+	
+	        };
+	
+	        [items addObject:actItem];
+	    }
+	
+	    return items;
+		}
+
+ShareActViewController 的实现
+	
+		@interface ShareActViewController () <UITableViewDelegate, UITableViewDataSource>
+	
+	@property (nonatomic, strong) void (^selectedHandler) ();
+	
+	@end
+	
+	@implementation ShareActViewController
+	
+	- (void)viewDidLoad
+	{
+	    [super viewDidLoad];
+	
+	    UITableView *tableView = [[UITableView alloc] initWithFrame:self.view.bounds];
+	    tableView.backgroundColor = [UIColor clearColor];
+	    tableView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+	    tableView.dataSource = self;
+	    tableView.delegate = self;
+	    [tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"Cell"];
+	    [self.view addSubview:tableView];
+	}
+	
+	- (void)onSelected:(void(^)(NSIndexPath *indexPath))handler
+	{
+	    self.selectedHandler = handler;
+	}
+	
+	- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+	{
+	    return 2;
+	}
+	
+	- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+	{
+	    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"Cell"];
+	    cell.backgroundColor = [UIColor clearColor];
+	
+	    switch (indexPath.row)
+	    {
+	        case 0:
+	            cell.textLabel.text = @"所有人";
+	            break;
+	        case 1:
+	            cell.textLabel.text = @"好友";
+	            break;
+	        default:
+	            break;
+	    }
+	
+	    return cell;
+	}
+	
+	- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+	{
+	    if (self.selectedHandler)
+	    {
+	        self.selectedHandler (indexPath);
+	    }
+	}
+在分享插件界面中重写了configurationItems方法，然后定义了两个配置项属性，分别是是否公开标识isPublic和公开权限act。然后创建是否公开的SLComposeSheetConfigurationItem配置项和根据isPublic的值来判断是否创建公开权限配置项。其中是否公开配置点击时会变更isPublic的值，从而达到显示或隐藏公开权限配置。而公开权限配置的点击则弹出一个选择的TableView，用于选择给定的值然后返回到分享界面。
+
+####5. 替换Share Extension中的默认分享界面
+1、如果通过扩展SLComposeServiceViewController还不能满足需求的情况下，这时候就需要自己设计一个分享视图控制器来替换默认的SLComposeServiceViewController。
+
+首先，创建一个自定义视图控制器，如：CustomShareViewController。
+
+2、然后打开扩展的Info.plist文件，删除NSExtensionMainStoryboard属性并增加一项NSExtensionPrincipalClass属性并指向CustomShareViewController（注：这里没有使用Storyboard所以要删除该属性），如图：
+
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180514_7)
+3、接下来根据实际的需要来设计分享视图的展示与交互形式。
+
+4、然后调用CustomShareViewController的extensionContext属性来控制扩展的提交与取消等操作（注：由于扩展中导入了关于ExtensionContext的UIViewController类目，因此，每个ViewController都带有extensionContext属性）。
+
+为了演示的简单性，下面的代码会通过extensionContext获取到url后，给到自定义分享视图的Label中显示，同时也提供一个提交和取消按钮，用于用户对分享内容的操作。代码如下：
+	
+	- (void)viewDidLoad
+	{
+	    [super viewDidLoad];
+	    // Do any additional setup after loading the view.
+	
+	    //定义一个容器视图来存放分享内容和两个操作按钮
+	    UIView *container = [[UIView alloc] initWithFrame:CGRectMake((self.view.frame.size.width - 300) / 2, (self.view.frame.size.height - 175) / 2, 300, 175)];
+	    container.layer.cornerRadius = 7;
+	    container.layer.borderColor = [UIColor lightGrayColor].CGColor;
+	    container.layer.borderWidth = 1;
+	    container.layer.masksToBounds = YES;
+	    container.backgroundColor = [UIColor whiteColor];
+	    container.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleBottomMargin;
+	    [self.view addSubview:container];
+	
+	    //定义Post和Cancel按钮
+	    UIButton *cancelBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+	    [cancelBtn setTitle:@"Cancel" forState:UIControlStateNormal];
+	    cancelBtn.frame = CGRectMake(8, 8, 65, 40);
+	    [cancelBtn addTarget:self action:@selector(cancelBtnClickHandler:) forControlEvents:UIControlEventTouchUpInside];
+	    [container addSubview:cancelBtn];
+	
+	    UIButton *postBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+	    [postBtn setTitle:@"Post" forState:UIControlStateNormal];
+	    postBtn.frame = CGRectMake(container.frame.size.width - 8 - 65, 8, 65, 40);
+	    [postBtn addTarget:self action:@selector(postBtnClickHandler:) forControlEvents:UIControlEventTouchUpInside];
+	    [container addSubview:postBtn];
+	
+	    //定义一个分享链接标签
+	    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(8,
+	                                                               cancelBtn.frame.origin.y + cancelBtn.frame.size.height + 8,
+	                                                               container.frame.size.width - 16,
+	                                                               container.frame.size.height - 16 - cancelBtn.frame.origin.y - cancelBtn.frame.size.height)];
+	    label.numberOfLines = 0;
+	    label.textAlignment = NSTextAlignmentCenter;
+	    [container addSubview:label];
+	
+	    //获取分享链接
+	    __block BOOL hasGetUrl = NO;
+	    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem *  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+	
+	        [obj.attachments enumerateObjectsUsingBlock:^(NSItemProvider *  _Nonnull itemProvider, NSUInteger idx, BOOL * _Nonnull stop) {
+	
+	            if ([itemProvider hasItemConformingToTypeIdentifier:@"public.url"])
+	            {
+	                [itemProvider loadItemForTypeIdentifier:@"public.url" options:nil completionHandler:^(id<NSSecureCoding>  _Nullable item, NSError * _Null_unspecified error) {
+	
+	                    if ([(NSObject *)item isKindOfClass:[NSURL class]])
+	                    {
+	                        dispatch_async(dispatch_get_main_queue(), ^{
+	
+	                            label.text = ((NSURL *)item).absoluteString;
+	
+	                        });
+	                    }
+	
+	                }];
+	
+	                hasGetUrl = YES;
+	                *stop = YES;
+	            }
+	
+	            *stop = hasGetUrl;
+	
+	        }];
+	
+	    }];
+	}
+	
+	- (void)cancelBtnClickHandler:(id)sender
+	{
+	    //取消分享
+	    [self.extensionContext cancelRequestWithError:[NSError errorWithDomain:@"CustomShareError" code:NSUserCancelledError userInfo:nil]];
+	}
+	
+	- (void)postBtnClickHandler:(id)sender
+	{
+	    //执行分享内容处理
+	    [self.extensionContext completeRequestReturningItems:@[] completionHandler:nil];
+	}
+
+share Extension 的基本内容就是这样了，
+下面是Demo的地址；[shareP]()
 
 
 
 
-  
+
+	
+	
 
 
     
