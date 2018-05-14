@@ -26,13 +26,11 @@
   ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_16.png)
   进入手机页面你会发现share Extension按钮是灰色状态不能点击，我先需要打开一个网页，例如：（www.baidu.com），现在我们点击方向按钮，会在share Extension栏找到我们的APP
   
-<!--  <img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png" border="0" width="100" height="200" alt="">
--->  
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_17.png)
   
  如果没有发现APP，点击旁边更多按钮，进入下级页面，把APP权限按钮打开
- 
-<img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png" border="0" width="300" height="370" alt="" align="center">
+ ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png)
+<!--<img src="http://github.com/wang22290/share-Extension/raw/master/Snip20180510_18.png" border="0" width="300" height="370">-->
 ####2、接下来我们准备处理share Extension数据
 ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_22.png)
 图片为苹果原生为我们提供的share Extension页面，进入程序shareViewController页面
@@ -526,11 +524,11 @@ _(默认情况下，如果用户点击Post按钮后，share Extension界面就�
  ![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180512_28.png)
  
 * 然后在shareViewController里面调用
-  
-    __block BOOL hasExistsUrl = NO;
-    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem * _Nonnull extItem, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSLog(@"%@-----------%@",extItem.attributedTitle,extItem.attributedContentText);
-        NSAttributedString *strings = [extItem.attributedContentText attributedSubstringFromRange:NSMakeRange(0, extItem.attributedContentText.length)];
+
+        __block BOOL hasExistsUrl = NO;
+	    [self.extensionContext.inputItems enumerateObjectsUsingBlock:^(NSExtensionItem * _Nonnull extItem, NSUInteger idx, BOOL * _Nonnull stop) {
+	        NSLog(@"%@-----------%@",extItem.attributedTitle,extItem.attributedContentText);
+	        NSAttributedString *strings = [extItem.attributedContentText attributedSubstringFromRange:NSMakeRange(0, extItem.attributedContentText.length)];
         
         NSArray *array = [strings.string componentsSeparatedByString:@"\n"];
         self.titleString = [NSString stringWithFormat:@"%@",array[0]];
@@ -824,7 +822,7 @@ ShareActViewController 的实现
 
 2、然后打开扩展的Info.plist文件，删除NSExtensionMainStoryboard属性并增加一项NSExtensionPrincipalClass属性并指向CustomShareViewController（注：这里没有使用Storyboard所以要删除该属性），如图：
 
-![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180514_7)
+![image](http://github.com/wang22290/share-Extension/raw/master/Snip20180514_7.png)
 3、接下来根据实际的需要来设计分享视图的展示与交互形式。
 
 4、然后调用CustomShareViewController的extensionContext属性来控制扩展的提交与取消等操作（注：由于扩展中导入了关于ExtensionContext的UIViewController类目，因此，每个ViewController都带有extensionContext属性）。
